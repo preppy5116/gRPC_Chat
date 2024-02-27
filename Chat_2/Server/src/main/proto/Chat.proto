@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package sbrt.preppy.userchat;
+
+option java_package = "sbrt.preppy.userchat";
+option java_outer_classname = "ChatProto";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+service Chat {
+  /*  -------------------------------- CONNECT/DISCONNECT -------------------------------- */
+  rpc connectUser(UserInfo) returns (ConnectMessage){}
+  rpc disconnectUser(UserInfo) returns(DisconnectMessage){}
+
+  /*  -------------------------------- SENDING MESSAGES -------------------------------- */
+  rpc sendBroadcastMsg(MessageText) returns (Empty){}
+  rpc sendPrivateMsg(PrivateMessageText) returns (Empty){}
+
+  /*  -------------------------------- GETTING MESSAGES -------------------------------- */
+  rpc syncMessages(UserInfo) returns (stream MessageText){}
+
+  rpc syncUserList(Empty) returns (stream UserInfo){}
+
+}
+/*  -------------------------------- MESSAGES -------------------------------- */
+message Empty{}
+
+message PrivateMessageText{
+  MessageText messageText = 1;
+  string receiver = 2;
+}
+
+message MessageText{
+  string text = 1;
+  string sender = 2;
+}
+
+message UserInfo{
+  string name = 1;
+}
+
+message ConnectMessage{
+  bool isConnected = 1;
+  string username = 2;
+}
+
+message DisconnectMessage{
+  bool isDisconnected = 1;
+  string username = 2;
+}
