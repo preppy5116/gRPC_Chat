@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package sbrt.preppy;
+
+
+
+//Мой вариант общения
+message UserInfo{
+  string name = 1;
+}
+
+message ConnectMessage{
+  bool isConnected = 1;
+  string username = 2;
+}
+
+message MessageText{
+  string text = 1;
+  string sender = 2;
+}
+message Empty{}
+
+message PrivateMessageText{
+  MessageText messageText = 1;
+  string receiver = 2;
+}
+
+message DisconnectMessage{
+  bool isDisconnected = 1;
+  string username = 2;
+}
+
+message ProfileDescriptor {
+  int64 profile_id = 1;
+  string name = 2;
+}
