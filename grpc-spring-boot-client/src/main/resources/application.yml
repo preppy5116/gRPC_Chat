@@ -15,21 +15,21 @@
 #  application:
 #    name: grpc-client
 
-server:
-  port: 8081
-
-spring:
-  application:
-    name: grpc-client
-  boot:
-    admin:
-      client:
-        url: http://localhost:8080
-# Enable logging
-logging:
-  level:
-    root: INFO
-    com.deft: INFO
+#server:
+#  port: 8081
+#
+#spring:
+#  application:
+#    name: grpc-client
+#  boot:
+#    admin:
+#      client:
+#        url: http://localhost:8080
+## Enable logging
+#logging:
+#  level:
+#    root: INFO
+#    com.deft: INFO
 
 #management:
 #  endpoints:

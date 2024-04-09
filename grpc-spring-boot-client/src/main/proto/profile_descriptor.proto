@@ -11,10 +11,12 @@ message ConnectMessage{
   bool isConnected = 1;
   string username = 2;
 }
+
 message MessageText{
   string text = 1;
   string sender = 2;
 }
+
 message Empty{}
 
 message PrivateMessageText{
@@ -26,6 +28,7 @@ message DisconnectMessage{
   bool isDisconnected = 1;
   string username = 2;
 }
+
 message ProfileDescriptor {
   int64 profile_id = 1;
   string name = 2;

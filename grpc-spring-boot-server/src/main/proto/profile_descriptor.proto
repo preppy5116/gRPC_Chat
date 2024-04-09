@@ -2,9 +2,6 @@ syntax = "proto3";
 
 package sbrt.preppy;
 
-
-
-//Мой вариант общения
 message UserInfo{
   string name = 1;
 }

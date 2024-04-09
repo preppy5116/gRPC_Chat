@@ -2,21 +2,10 @@ syntax = "proto3";
 
 package sbrt.preppy;
 
-//import "google/protobuf/empty.proto";
 import "profile_descriptor.proto";
 
 service ProfileService {
-//  rpc GetCurrentProfile (google.protobuf.Empty) returns (ProfileDescriptor) {}
-//
-//  rpc DeleteCurrentProfile (google.protobuf.Empty) returns (google.protobuf.Empty) {}
-//
-//  rpc clientStream (stream ProfileDescriptor) returns (google.protobuf.Empty) {}
-//
-//  rpc serverStream (google.protobuf.Empty) returns (stream ProfileDescriptor) {}
-//
-//  rpc biDirectionalStream (stream ProfileDescriptor) returns (stream ProfileDescriptor) {}
 
-  //Мой вариант общения
   /*  -------------------------------- CONNECT/DISCONNECT -------------------------------- */
   rpc connectUser (UserInfo) returns (ConnectMessage) {}
   rpc disconnectUser(UserInfo) returns(DisconnectMessage){}
@@ -26,5 +15,4 @@ service ProfileService {
   /*  -------------------------------- GETTING MESSAGES -------------------------------- */
   rpc syncMessages(UserInfo) returns (stream MessageText){}
   rpc syncUserList(Empty) returns (stream UserInfo){}
-
 }

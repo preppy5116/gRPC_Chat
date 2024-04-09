@@ -2,95 +2,152 @@ package sbrt.preppy.grpc;
 
 import io.grpc.*;
 import io.grpc.stub.StreamObserver;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import sbrt.preppy.ProfileDescriptorOuterClass;
 import sbrt.preppy.ProfileServiceGrpc;
 
 import jline.console.ConsoleReader;
+import sbrt.preppy.grpc.clientlog.MessageCreator;
+import sbrt.preppy.grpc.clientlog.MessageHandler;
 import sbrt.preppy.grpc.exceptions.DuplicateUsernameException;
 import sbrt.preppy.grpc.exceptions.UserNotFoundException;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
-@Slf4j
+/**
+ * @author preppy
+ * A class describing the work of the chat client.
+ */
 @Component
 public class GrpcProfileClientImpl implements GrpcProfileClient {
+    /**
+     * The field is the client's host
+     */
     private static final String HOST = "localhost";
-    private static final int PORT = 9090;
-    private static final String TARGET = HOST + ":" + PORT;
 
+    /**
+     * The field is the client's port
+     */
+    private static final int PORT = 9090;
+    /**
+     *
+     */
+    private static final String TARGET = HOST + ":" + PORT;
+    /**
+     *
+     */
     public static final String PRIVATE_MESSAGE_ID = "PRIVATE";
+    /**
+     *
+     */
     public static final String PUBLIC_MESSAGE_ID = "PUBLIC";
+    /**
+     *
+     */
     public static final String MESSAGE_TYPE_REGEX = ": ";
 
+    /**
+     * Blocking stub for calling service methods
+     */
+    private ProfileServiceGrpc.ProfileServiceBlockingStub blockingStub;
 
-    private final ProfileServiceGrpc.ProfileServiceBlockingStub blockingStub;
+    /**
+     * Non-blocking stub for calling service methods
+     */
     private final ProfileServiceGrpc.ProfileServiceStub asyncStub;
+
+    /**
+     * gRPC channel for connection stubs
+     */
     ManagedChannel channel;
+    /**
+     *
+     */
     private static User user;
+    /**
+     * Creating messages/log for the client
+     */
+    MessageCreator messageCreator;
 
-
+    /**
+     *A constructor in which a channel is created for the client's work.
+     * A blocking and asynchronous stub for the channel are also being created
+     */
     public GrpcProfileClientImpl() {
-        channel = ManagedChannelBuilder.forTarget(TARGET)
+        channel = ManagedChannelBuilder.forTarget(HOST + ":" + PORT)
                 .usePlaintext()
                 .build();
         blockingStub = ProfileServiceGrpc.newBlockingStub(channel);
         asyncStub = ProfileServiceGrpc.newStub(channel);
+        messageCreator = new MessageHandler();
     }
 
+    /**
+     * The method that starts the client's work
+     */
     public void start() {
-        //TODO запрос на выведение всех on-line клиентов(getOnline?),
-        // выведение в консоль лист клиентов
-
         try (ConsoleReader console = new ConsoleReader()) {
-            String author = console.readLine("Set you name: ");
-            boolean running = connectUser(author);
+            String author;
             String message;
 
+            author = console.readLine(" Set your name: ");
+            boolean running = connectUser(author);
+
+            syncUserList();
+            syncMessages();
+
             while (running) {
-                message = console.readLine(user.getName() + " > ");
+                message = console.readLine(">");
                 if (message.contains("@")) {
                     sendPrivateMsg(message);
                 } else if (message.equals("exit")) {
                     running = false;
                 } else if (message.isEmpty()) {
-                    System.out.println("####Введите сообщение для отправки всем");
-                    System.out.println("####Для приватного сообщения в конце текста укажите получателя @username" +
-                            " text @username");
+                    messageCreator.printWrongMessageBody();
                 } else {
                     sendBroadcastMsg(message);
                 }
             }
-            disconnectUser(channel);
-            console.getTerminal().restore();
-
+            if (disconnectUser(channel)) {
+                console.getTerminal().restore();
+            }
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
+    /**
+     * Sending a request to the server to connect the client by name.
+     * It is not allowed to use @ and server in the name.
+     * @param username the entered name of the client
+     * @return connection status
+     */
     @Override
     public boolean connectUser(String username) throws IOException {
+
+        if (username.contains("@") | username.contains("Server")) {
+            messageCreator.printWrongSymbol();
+            try (ConsoleReader console = new ConsoleReader()) {
+                String author = console.readLine(" Set you name: ");
+                return connectUser(author);
+            }
+        }
         ProfileDescriptorOuterClass.UserInfo userInfo = ProfileDescriptorOuterClass.UserInfo.newBuilder().setName(username).build();
         ProfileDescriptorOuterClass.ConnectMessage response;
         try {
             response = blockingStub.connectUser(userInfo);
             if (response.getIsConnected()) {
                 user = new User(username);
-                sendBroadcastMsg(username + " has entered the chat");
-                syncMessages();
-                syncUserList();
                 return true;
             } else {
                 throw new DuplicateUsernameException(username);
             }
-        } catch (StatusRuntimeException | UserNotFoundException e) {
+        } catch (StatusRuntimeException e) {
             System.out.println("Exception" + e.getMessage());
         } catch (DuplicateUsernameException e) {
-
-            try(ConsoleReader console = new ConsoleReader()) {
+            try (ConsoleReader console = new ConsoleReader()) {
                 String author = console.readLine("Set you name: ");
                 return connectUser(author);
             }
@@ -98,27 +155,39 @@ public class GrpcProfileClientImpl implements GrpcProfileClient {
         return false;
     }
 
+    /**
+     * Sending a request to disconnect the client from the server.
+     * If it is impossible to disconnect, a negative response will be returned.
+     * @param channel client channel waiting to be disconnected
+     * @return disconnection status
+     */
     @Override
-    public void disconnectUser(ManagedChannel channel) {
+    public boolean disconnectUser(ManagedChannel channel) {
         ProfileDescriptorOuterClass.UserInfo userInfo = ProfileDescriptorOuterClass.UserInfo.newBuilder().setName(user.getName()).build();
         ProfileDescriptorOuterClass.DisconnectMessage response;
         try {
-            sendBroadcastMsg(user.getName() + " has left the chat");
             response = blockingStub.disconnectUser(userInfo);
             if (response.getIsDisconnected()) {
-                System.out.println("Successfully disconnected from server.");
-
+                messageCreator.printSuccessFullyDisconnect();
                 channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
+                return true;
             } else {
-                System.out.println("Failed to disconnect from server");
+                messageCreator.printFailedDisconnect();
             }
         } catch (StatusRuntimeException e) {
             System.out.println("Exception" + e.getMessage());
-        } catch (InterruptedException | UserNotFoundException e) {
+        } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
+        return false;
     }
 
+
+    /**
+     * Sending a broadcast message from the client to the server
+     * @param text the text of the message
+     * @throws UserNotFoundException  the chat client was not created
+     */
     @Override
     public void sendBroadcastMsg(String text) throws UserNotFoundException {
         if (user != null) {
@@ -126,33 +195,38 @@ public class GrpcProfileClientImpl implements GrpcProfileClient {
             try {
                 blockingStub.sendBroadcastMsg(messageText);
             } catch (StatusRuntimeException e) {
-                log.info(e.getMessage());
-                System.out.println("Could not connect with server. Try again.");
+                messageCreator.printFailedMessage();
             }
         } else {
             throw new UserNotFoundException("Could not find user");
         }
     }
 
+    /**
+     * Sending a private message from the client to the server
+     * @param text the text of the message
+     * @throws UserNotFoundException the chat client was not created
+     */
     @Override
     public void sendPrivateMsg(String text) throws UserNotFoundException {
         int client_count = text.indexOf("@");
         String toClientName = text.substring(client_count + 1);
-
         if (user != null) {
             ProfileDescriptorOuterClass.MessageText messageText = ProfileDescriptorOuterClass.MessageText.newBuilder().setText(text).setSender(user.getName()).build();
             ProfileDescriptorOuterClass.PrivateMessageText privateMessageText = ProfileDescriptorOuterClass.PrivateMessageText.newBuilder().setMessageText(messageText).setReceiver(toClientName).build();
             try {
                 blockingStub.sendPrivateMsg(privateMessageText);
             } catch (StatusRuntimeException e) {
-                log.info(e.getMessage());
-                System.out.println("Could not connect with server. Try again.");
+                messageCreator.printFailedMessage();
             }
         } else {
             throw new UserNotFoundException("Could not find user");
         }
     }
 
+    /**
+     * Opening a stream to synchronize messages received from the server
+     */
     @Override
     public void syncMessages() {
         StreamObserver<ProfileDescriptorOuterClass.MessageText> observer = new StreamObserver<>() {
@@ -164,26 +238,29 @@ public class GrpcProfileClientImpl implements GrpcProfileClient {
                     throw new RuntimeException(e);
                 }
             }
-
             @Override
             public void onError(Throwable t) {
-                log.info("Server-side error.");
+                messageCreator.printMessage(" Server-side error.");
                 System.exit(1);
             }
 
             @Override
-            public void onCompleted() {
-
-            }
+            public void onCompleted() {      }
         };
         try {
             asyncStub.syncMessages(ProfileDescriptorOuterClass.UserInfo.newBuilder().setName(user.getName()).build(), observer);
         } catch (Exception e) {
-            log.info(e.getMessage());
+            System.out.println(e.getMessage());
         }
     }
 
+    /**
+     * Distribution of the received message for display as private or broadcast
+     * @param text the text of the message
+     * @param sender sender of message
+     */
     private void placeInRightMessageList(String text, String sender) throws InterruptedException {
+
         String[] split = text.split(MESSAGE_TYPE_REGEX);
         String MESSAGE_ID = split[0];
         String send = split[1];
@@ -193,32 +270,34 @@ public class GrpcProfileClientImpl implements GrpcProfileClient {
             case PRIVATE_MESSAGE_ID:
                 String message = content.substring(0, content.indexOf("@"));
                 if (!sender.equals(user.getName())) {
-                    System.out.println("[Private message] " + send + ":" + message);
+                    messageCreator.printMessage("[Private message] " + send + ":" + message);
+                }
+                if (sender.equals("Server")) {
+                    messageCreator.printMessage(message);
                 }
                 break;
             case PUBLIC_MESSAGE_ID:
-                if (text.contains(" has entered the chat")) {
-                    syncUserList();
-                }
                 if (!sender.equals(user.getName())) {
-                    System.out.println(send + ":" + content);
+                    messageCreator.printMessage(" " + send + ":" + content);
                 }
                 break;
         }
     }
 
-
+    /**
+     * Stream for displaying the current list of on-line clients
+     */
     @Override
     public void syncUserList() {
         StreamObserver<ProfileDescriptorOuterClass.UserInfo> observer = new StreamObserver<>() {
             @Override
             public void onNext(ProfileDescriptorOuterClass.UserInfo value) {
-                System.out.println("On-Line users : " + value.getName());
+                System.out.println("Online users : " + value.getName());
             }
 
             @Override
             public void onError(Throwable t) {
-                System.out.println("Server error.");
+                System.out.println(" Server error.");
             }
 
             @Override
@@ -228,7 +307,16 @@ public class GrpcProfileClientImpl implements GrpcProfileClient {
         try {
             asyncStub.syncUserList(ProfileDescriptorOuterClass.Empty.newBuilder().build(), observer);
         } catch (Exception e) {
-            log.info(e.getMessage());
+            messageCreator.printMessage(e.getMessage());
         }
+    }
+
+    /**
+     * Installing a blocking plug. It is necessary for testing
+     * @param blockingStub
+     */
+    public void setBlockingStub(ProfileServiceGrpc.ProfileServiceBlockingStub blockingStub) {
+        this.blockingStub = blockingStub;
+        user = new User("test");
     }
 }

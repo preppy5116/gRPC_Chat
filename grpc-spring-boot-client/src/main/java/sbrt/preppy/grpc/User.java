@@ -5,7 +5,7 @@ import lombok.Getter;
 import java.util.Random;
 
 /**
- * Простейшая модель клиента чата
+ * The simplest chat client model
  */
 @Getter
 public class User {

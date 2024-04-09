@@ -4,6 +4,9 @@ import lombok.Getter;
 
 import java.util.Random;
 
+/**
+ * The simplest client model used in a chat
+ */
 @Getter
 public class User {
     private final String name;
@@ -12,6 +15,7 @@ public class User {
         this.name = name;
         this.idUser = "u" + new Random().nextLong();
     }
+
     @Override
     public String toString() {
         return name;

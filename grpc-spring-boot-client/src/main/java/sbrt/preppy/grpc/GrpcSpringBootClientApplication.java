@@ -5,7 +5,6 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.ApplicationContext;
 import sbrt.preppy.grpc.exceptions.UserNotFoundException;
 
-// java -jar grpc-spring-boot-client-0.0.1-SNAPSHOT.jar
 @SpringBootApplication
 public class GrpcSpringBootClientApplication {
 
