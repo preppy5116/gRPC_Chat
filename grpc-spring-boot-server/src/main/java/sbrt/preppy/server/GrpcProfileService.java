@@ -135,9 +135,10 @@ public class GrpcProfileService extends ProfileServiceGrpc.ProfileServiceImplBas
                     MSG_MUTEX.notifyAll();
                 }
                 log.info("sendBroadcastMsg: " + msg);
-                responseObserver.onNext(ProfileDescriptorOuterClass.Empty.newBuilder().build());
-                responseObserver.onCompleted();
+         
             }
+                   responseObserver.onNext(ProfileDescriptorOuterClass.Empty.newBuilder().build());
+                responseObserver.onCompleted();
         } catch (UserNotFoundException e) {
             responseObserver.onCompleted();
         }
